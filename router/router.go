@@ -6,10 +6,15 @@ import (
 )
 
 func SetupRoutes(app *fiber.App) {
-	api := app.Group("/api/gostore")
+	api := app.Group("/api/v1/gostore")
 
-	api.Get("*", handler.ListObject)
+	api.Get("/", func(c *fiber.Ctx) error {
+		return c.SendString("Root")
+	})
 
+	api.Get("/store/*", handler.GetObject)
+
+	// add option to create a file or dir using querystring
 	api.Post("*", handler.CreateObject)
 
 	api.Delete("*", handler.DeleteOjbect)
