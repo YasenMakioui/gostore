@@ -30,3 +30,14 @@ func CheckPath(path string) (bool, error) {
 
 	return true, nil
 }
+
+func AddTrailingSlash(str string) string {
+
+	len := len(str)
+
+	if string(str[len-1]) == "/" {
+		return str
+	}
+
+	return str + "/"
+}
