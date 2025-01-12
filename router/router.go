@@ -14,9 +14,10 @@ func SetupRoutes(app *fiber.App) {
 
 	api.Get("/store/*", handler.GetObject)
 
-	// add option to create a file or dir using querystring
-	api.Post("*", handler.CreateObject)
+	api.Post("/store/*", handler.CreateObject)
 
-	api.Delete("*", handler.DeleteOjbect)
+	api.Delete("/store/*", handler.DeleteOjbect)
+
+	api.Get("/stats/usage/disk", handler.GetDiskUsage)
 
 }
