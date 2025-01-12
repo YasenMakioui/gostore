@@ -18,6 +18,8 @@ type Object struct {
 
 func GetObject(c *fiber.Ctx) error {
 
+	c.Set("Access-Control-Allow-Origin", "*")
+
 	baseDir := config.Config("BASEDIR")
 
 	contextPath := c.Path() // This contains the url without /api/v1/gostore/store
