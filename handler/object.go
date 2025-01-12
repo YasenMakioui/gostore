@@ -1,7 +1,6 @@
 package handler
 
 import (
-	"fmt"
 	"log"
 	"os"
 	"path"
@@ -97,27 +96,91 @@ func GetObject(c *fiber.Ctx) error {
 }
 
 func CreateObject(c *fiber.Ctx) error {
-
+	// A payload specifying the type is needed. Default will be file but if file: false in payload then create a dir
 	o := new(Object)
 
-	if err := c.BodyParser(o); err != nil {
+	if err := c.BodyParser(o); err != nil { // Bind the request body to the Object struct
 		return c.SendStatus(500)
 	}
 
-	return c.SendString("Creating file")
+	// Create the file on the specified path
+
+	baseDir := config.Config("BASEDIR")
+
+	contextPath := c.Path() // This contains the url without /api/v1/gostore/store
+
+	gostorePath := utils.AddTrailingSlash(contextPath)
+
+	gostorePath, _ = strings.CutPrefix(gostorePath, "/api/v1/gostore/store")
+
+	localPath := path.Join(baseDir, gostorePath)
+
+	exists, _ := utils.CheckPath(path.Join(localPath, o.Name))
+
+	if exists {
+		return c.SendString("Object already exists")
+	}
+
+	// Check if its a file or a directory
+
+	mode, err := os.Stat(localPath)
+
+	if err != nil {
+		return c.SendStatus(500)
+	}
+
+	if !mode.IsDir() {
+		return c.SendString("Can't create an object into a file type")
+	}
+
+	// If its a dir, then create the specified file
+
+	if !o.File {
+		err := os.MkdirAll(path.Join(localPath, o.Name), 0777)
+		if err != nil && !os.IsExist(err) {
+			log.Fatal(err)
+			return c.SendStatus(500)
+		}
+
+		return c.SendString("Created dir successfully")
+	}
+
+	err = os.WriteFile(path.Join(localPath, o.Name), []byte(""), 0666)
+
+	if err != nil {
+		log.Fatal(err)
+		c.SendStatus(500)
+	}
+
+	return c.JSON(o)
 }
 
 func DeleteOjbect(c *fiber.Ctx) error {
 
-	o := new(Object)
+	baseDir := config.Config("BASEDIR")
 
-	if err := c.BodyParser(o); err != nil {
+	contextPath := c.Path() // This contains the url without /api/v1/gostore/store
+
+	gostorePath := utils.AddTrailingSlash(contextPath)
+
+	gostorePath, _ = strings.CutPrefix(gostorePath, "/api/v1/gostore/store")
+
+	localPath := path.Join(baseDir, gostorePath)
+
+	_, err := utils.CheckPath(path.Join(localPath))
+
+	if err != nil {
+		// File does not exist, send a 404
+		return c.SendStatus(404)
+	}
+
+	err = os.RemoveAll(localPath)
+
+	if err != nil {
 		return c.SendStatus(500)
 	}
 
-	fmt.Println(o.File)
-
-	return c.SendString("Deleting objectt")
+	return c.SendString("Object deleted")
 }
 
 func GetObjectInfo() {}
