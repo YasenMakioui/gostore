@@ -10,7 +10,6 @@ let backBtn = document.getElementById("back")
 
 
 
-
 async function getObjects(reesource, timeout = 5000, options = {}) {
     const response = await fetch(reesource, {
         ...options,
@@ -71,7 +70,8 @@ function addBackEvent(element) {
     })
 }
 
-function addObjectEvents(data) {
+// Ads dynamically events to generated objects
+function addEvents(data) {
     // For each element we add an event listener 
     console.log("I got called!")
     data.forEach(element => {
@@ -79,11 +79,12 @@ function addObjectEvents(data) {
         
         object.addEventListener("dblclick", (event) => {
             console.log("Element " + element.name + " double clicked")
-            
+            console.log(apiUrl)
             let target = `/${element.name}`
             apiUrl = `${apiUrl}${target}`
-            app.innerHTML = ""
             console.log(apiUrl)
+            app.innerHTML = ""
+            
 
             let objects = getObjects(apiUrl)
                 .then(data => {
@@ -91,8 +92,8 @@ function addObjectEvents(data) {
                     generateObjects(data).forEach(element => {
                         app.innerHTML += element
                     })
-                    // Recursive
-                    addObjectEvents(data)
+                    
+                    addEvents(data)
                 })
                 .catch(error => {
                     console.log(error.message)
@@ -106,11 +107,13 @@ function addObjectEvents(data) {
             console.log("Element " + element.name + " Clicked once")
             object.classList.add("bg-gray-100")
         })
-
-        
     })
+
+    
 }
 
+
+//first load
 objects = getObjects(apiUrl)
     .then(data => {
         fileLoading.style = "display: none"
@@ -118,31 +121,30 @@ objects = getObjects(apiUrl)
             app.innerHTML += element
         })
 
-        addObjectEvents(data)
+        addEvents(data)
     })
     .catch(error => {
         console.log(error.message)
     });
 
-
-// backBtn.addEventListener("click", (event) => {
-//     let tmpApiUrl = apiUrl.replace(`/${apiUrl.split("/").slice(-1)}`, "")
-//     console.log(tmpApiUrl)
-//     if (tmpApiUrl.length > apiUrl) {
-//         apiUrl = tmpApiUrl
-//     }
-    
-//     objects = getObjects(apiUrl)
-//     .then(data => {
-//         fileLoading.style = "display: none"
-//         generateObjects(data).forEach(element => {
-//             app.innerHTML += element
-//         })
-
-//         addObjectEvents(data)
-//     })
-//     .catch(error => {
-//         console.log(error.message)
-//     });
-    
-// })
+// Add event to back btn
+backBtn.addEventListener("click", (event) => {
+    let tmpApiUrl = apiUrl.replace(`/${apiUrl.split("/").slice(-1)}`, "")
+    app.innerHTML = ""
+    let objects = getObjects(tmpApiUrl)
+            .then(data => {
+                fileLoading.style = "display: none"
+                generateObjects(data).forEach(element => {
+                    app.innerHTML += element
+                })
+                    
+                addEvents(data)
+            })
+            .catch(error => {
+                console.log(error.message)
+            });
+        
+    apiUrl = tmpApiUrl  
+    console.log(apiUrl)
+    console.log("halo")
+    })
