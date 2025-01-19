@@ -13,10 +13,9 @@ func SetupRoutes(app *fiber.App) {
 	})
 
 	api.Get("/store/*", handler.GetObject)
-
 	api.Post("/store/*", handler.CreateObject)
-
 	api.Delete("/store/*", handler.DeleteOjbect)
+	api.Put("/store/*", handler.ModifyObject)
 
 	api.Get("/stats/usage/disk", handler.GetDiskUsage)
 

@@ -17,52 +17,47 @@ type Object struct {
 }
 
 func GetObject(c *fiber.Ctx) error {
+	// Create the file list
+
+	var objectList []*Object
 
 	c.Set("Access-Control-Allow-Origin", "*")
 
-	baseDir := config.Config("BASEDIR")
-
-	contextPath := c.Path() // This contains the url without /api/v1/gostore/store
-
-	gostorePath := utils.AddTrailingSlash(contextPath)
-
-	gostorePath, _ = strings.CutPrefix(gostorePath, "/api/v1/gostore/store")
-
-	localPath := path.Join(baseDir, gostorePath)
-
-	// Create the file list
-
-	var objects []*Object
+	localPath := utils.GetLocalPath(c.Path())
 
 	// Check if file exists
 
-	_, err := utils.CheckPath(localPath)
-
-	if err != nil {
-		// File does not exist, send a 404
-		return c.SendStatus(404)
+	if _, err := utils.CheckPath(localPath); err != nil {
+		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
+			"error": "File not found",
+		})
 	}
-
 	// Check if its a file or a directory
 
-	mode, err := os.Stat(localPath)
+	isFile, err := utils.IsFile(localPath)
 
 	if err != nil {
-		return c.SendStatus(500)
+		// Error returned, something went wrong checking the file mode
+		log.Printf("Error checking file mode: %v", err)
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": "Could not check the file mode",
+		})
 	}
 
 	// If its a file, read the file
 
-	if !mode.IsDir() {
+	if isFile {
 
-		contents, err := readObject(localPath)
+		contents, err := readObject(localPath) // this could be a utils func
 
 		if err != nil {
-			return c.SendStatus(500)
+			log.Printf("Error reading file: %v", err)
+			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+				"error": "Could not read the specified file",
+			})
 		}
 
 		return c.JSON(contents)
-		//return c.JSON(contents)
 	}
 
 	// If its a dir, return the files inside the dir
@@ -70,91 +65,109 @@ func GetObject(c *fiber.Ctx) error {
 	entries, err := os.ReadDir(localPath)
 
 	if err != nil {
-		return c.SendStatus(500)
+		log.Printf("Error getting file info: %v", err)
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": "Could not read the specified directory",
+		})
 	}
 
-	for _, e := range entries {
+	for _, entry := range entries {
 
-		o := new(Object) // https://www.freecodecamp.org/news/new-vs-make-functions-in-go/
+		//o := new(Object) // https://www.freecodecamp.org/news/new-vs-make-functions-in-go/
 
-		info, err := e.Info()
+		info, err := entry.Info()
 
 		if err != nil {
-			log.Fatal(err)
-			c.SendStatus(500)
+			// Could not get the path info
+			log.Printf("Error getting file info: %v", err)
+			c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+				"error": "Error processing directory entry",
+			})
 		}
 
-		o.Name = info.Name()
-		o.File = true
-
-		if info.IsDir() {
-			o.File = false
+		object := &Object{
+			Name: info.Name(),
+			File: !info.IsDir(),
 		}
 
-		objects = append(objects, o)
+		objectList = append(objectList, object)
+
 	}
 
-	return c.JSON(objects) //c.JSON(files)
+	return c.JSON(objectList)
 }
 
 func CreateObject(c *fiber.Ctx) error {
 	// A payload specifying the type is needed. Default will be file but if file: false in payload then create a dir
-	o := new(Object)
+	object := new(Object)
 
-	if err := c.BodyParser(o); err != nil { // Bind the request body to the Object struct
-		return c.SendStatus(500)
+	if err := c.BodyParser(object); err != nil { // Bind the request body to the Object struct
+		log.Printf("Error parsing request body %v", err)
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "Invalid request paylad",
+		})
 	}
 
 	// Create the file on the specified path
 
-	baseDir := config.Config("BASEDIR")
+	localPath := utils.GetLocalPath(c.Path())
 
-	contextPath := c.Path() // This contains the url without /api/v1/gostore/store
+	targetPath := path.Join(localPath, object.Name)
 
-	gostorePath := utils.AddTrailingSlash(contextPath)
-
-	gostorePath, _ = strings.CutPrefix(gostorePath, "/api/v1/gostore/store")
-
-	localPath := path.Join(baseDir, gostorePath)
-
-	exists, _ := utils.CheckPath(path.Join(localPath, o.Name))
-
-	if exists {
-		return c.SendString("Object already exists")
+	if exists, _ := utils.CheckPath(targetPath); exists {
+		return c.Status(fiber.StatusConflict).JSON(fiber.Map{
+			"error": "File or directory already exists",
+		})
 	}
 
-	// Check if its a file or a directory
+	// Check if its a file or a directory in the local storage
 
-	mode, err := os.Stat(localPath)
+	isFile, err := utils.IsFile(localPath)
 
 	if err != nil {
-		return c.SendStatus(500)
+		// Error returned, something went wrong checking the file mode
+		log.Printf("Error checking file mode: %v", err)
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": "Error checking file mode",
+		})
 	}
 
-	if !mode.IsDir() {
-		return c.SendString("Can't create an object into a file type")
+	if isFile {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "Cannot create an object inside a file",
+		})
 	}
 
-	// If its a dir, then create the specified file
+	// If its a dir, then create the specified dir
 
-	if !o.File {
-		err := os.MkdirAll(path.Join(localPath, o.Name), 0777)
-		if err != nil && !os.IsExist(err) {
-			log.Fatal(err)
-			return c.SendStatus(500)
+	if !object.File {
+
+		if err := os.MkdirAll(targetPath, 0755); err != nil {
+			log.Printf("Error creating directory: %v", err)
+			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+				"error": "Error creating file",
+			})
 		}
 
-		return c.SendString("Created dir successfully")
+		return c.JSON(fiber.Map{
+			"message": "Directory created successfully",
+			"name":    object.Name,
+		})
 	}
 
-	err = os.WriteFile(path.Join(localPath, o.Name), []byte(""), 0666)
+	// If its a file, then create the specified file
 
-	if err != nil {
-		log.Fatal(err)
-		c.SendStatus(500)
+	if err := os.WriteFile(targetPath, []byte(""), 0644); err != nil {
+		log.Printf("Error creating file: %v", err)
+		c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": "Error creating file",
+		})
 	}
 
-	return c.JSON(o)
+	return c.JSON(fiber.Map{
+		"message": "File created successfully",
+		"name":    object.Name,
+	})
 }
 
 func DeleteOjbect(c *fiber.Ctx) error {
@@ -185,7 +198,9 @@ func DeleteOjbect(c *fiber.Ctx) error {
 	return c.SendString("Object deleted")
 }
 
-func GetObjectInfo() {}
+func ModifyObject(c *fiber.Ctx) error {
+	return c.SendString("modify")
+}
 
 func readObject(path string) (map[string]string, error) {
 

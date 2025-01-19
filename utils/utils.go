@@ -3,8 +3,11 @@ package utils
 import (
 	"fmt"
 	"os"
+	"path"
 	"path/filepath"
 	"strings"
+
+	"github.com/YasenMakioui/gostore/config"
 )
 
 func GetFilePath(gostorePath, uriPath string, prefix string) string {
@@ -40,4 +43,23 @@ func AddTrailingSlash(str string) string {
 	}
 
 	return str + "/"
+}
+
+func GetLocalPath(contextPath string) string {
+	baseDir := config.Config("BASEDIR")
+
+	gostorePath := AddTrailingSlash(contextPath)
+	gostorePath, _ = strings.CutPrefix(gostorePath, config.Config("GOSTOREPATH"))
+
+	return path.Join(baseDir, gostorePath)
+}
+
+func IsFile(path string) (bool, error) {
+	mode, err := os.Stat(path)
+
+	if mode.IsDir() {
+		return false, err
+	}
+
+	return true, err
 }
