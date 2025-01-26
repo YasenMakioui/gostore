@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"fmt"
 	"log"
 	"os"
 	"path"
@@ -11,8 +12,25 @@ import (
 )
 
 type Object struct {
-	File bool   `json:"file"`
-	Name string `json:"name"`
+	File       bool   `json:"file"`
+	Name       string `json:"name"`
+	Path       string `json:"path"`
+	Permission int    `json:"permission"`
+}
+
+func (o *Object) delete() (string, error) {
+
+	if _, err := utils.CheckPath(o.Path); err != nil {
+		fmt.Println(err)
+		return o.Name, err
+	}
+
+	if err := os.RemoveAll(o.Path); err != nil {
+		fmt.Println(err)
+		return o.Name, err
+	}
+
+	return o.Name, nil
 }
 
 func GetObject(c *fiber.Ctx) error {
@@ -171,19 +189,14 @@ func CreateObject(c *fiber.Ctx) error {
 
 func DeleteOjbect(c *fiber.Ctx) error {
 
+	object := new(Object)
+
 	pathSlice := strings.Split(c.Path(), "/")
 
-	objectName := pathSlice[len(pathSlice)-1]
+	object.Name = pathSlice[len(pathSlice)-1]
+	object.Path = utils.GetLocalPath(c.Path())
 
-	localPath := utils.GetLocalPath(c.Path())
-
-	if _, err := utils.CheckPath(localPath); err != nil {
-		return c.Status(fiber.StatusConflict).JSON(fiber.Map{
-			"error": "The specified path does not exist",
-		})
-	}
-
-	if err := os.RemoveAll(localPath); err != nil {
+	if _, err := object.delete(); err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
 			"error": "Could not delete de file",
 		})
@@ -191,7 +204,7 @@ func DeleteOjbect(c *fiber.Ctx) error {
 
 	return c.JSON(fiber.Map{
 		"message": "Deleted successfully",
-		"name":    objectName,
+		"name":    object.Name,
 	})
 }
 
@@ -205,12 +218,16 @@ func ModifyObject(c *fiber.Ctx) error {
 			object: "",
 			name: "",
 			permission: "",
-			move: "",
+			path: "",
 		}
 
 	*/
 
 	//object := new(Object)
+
+	// bind the object data
+
+	//modifiedObject := NewObject()
 
 	return c.SendString("modify")
 }
