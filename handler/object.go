@@ -6,7 +6,6 @@ import (
 	"path"
 	"strings"
 
-	"github.com/YasenMakioui/gostore/config"
 	"github.com/YasenMakioui/gostore/utils"
 	"github.com/gofiber/fiber/v2"
 )
@@ -48,7 +47,7 @@ func GetObject(c *fiber.Ctx) error {
 
 	if isFile {
 
-		contents, err := readObject(localPath) // this could be a utils func
+		contents, err := utils.ReadObject(localPath)
 
 		if err != nil {
 			log.Printf("Error reading file: %v", err)
@@ -172,47 +171,46 @@ func CreateObject(c *fiber.Ctx) error {
 
 func DeleteOjbect(c *fiber.Ctx) error {
 
-	baseDir := config.Config("BASEDIR")
+	pathSlice := strings.Split(c.Path(), "/")
 
-	contextPath := c.Path() // This contains the url without /api/v1/gostore/store
+	objectName := pathSlice[len(pathSlice)-1]
 
-	gostorePath := utils.AddTrailingSlash(contextPath)
+	localPath := utils.GetLocalPath(c.Path())
 
-	gostorePath, _ = strings.CutPrefix(gostorePath, "/api/v1/gostore/store")
-
-	localPath := path.Join(baseDir, gostorePath)
-
-	_, err := utils.CheckPath(path.Join(localPath))
-
-	if err != nil {
-		// File does not exist, send a 404
-		return c.SendStatus(404)
+	if _, err := utils.CheckPath(localPath); err != nil {
+		return c.Status(fiber.StatusConflict).JSON(fiber.Map{
+			"error": "The specified path does not exist",
+		})
 	}
 
-	err = os.RemoveAll(localPath)
-
-	if err != nil {
-		return c.SendStatus(500)
+	if err := os.RemoveAll(localPath); err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": "Could not delete de file",
+		})
 	}
 
-	return c.SendString("Object deleted")
+	return c.JSON(fiber.Map{
+		"message": "Deleted successfully",
+		"name":    objectName,
+	})
 }
 
 func ModifyObject(c *fiber.Ctx) error {
+	// move object to another dir
+	// change object name
+	// modify object permissions
+	// Payload
+	/*
+		{
+			object: "",
+			name: "",
+			permission: "",
+			move: "",
+		}
+
+	*/
+
+	//object := new(Object)
+
 	return c.SendString("modify")
-}
-
-func readObject(path string) (map[string]string, error) {
-
-	contentMap := make(map[string]string)
-
-	content, err := os.ReadFile(path)
-
-	if err != nil {
-		return contentMap, err
-	}
-
-	contentMap["res"] = string(content)
-
-	return contentMap, err
 }
