@@ -2,6 +2,7 @@ package handler
 
 import (
 	"fmt"
+	"io/fs"
 	"log"
 	"os"
 	"path"
@@ -11,6 +12,9 @@ import (
 	"github.com/gofiber/fiber/v2"
 )
 
+// Logging should be handled by the handler, do not add logs on object methods.
+
+// Object maps directly to a file or directory in the host system
 type Object struct {
 	File       bool   `json:"file"`
 	Name       string `json:"name"`
@@ -18,8 +22,11 @@ type Object struct {
 	Permission int    `json:"permission"`
 }
 
-func (o *Object) delete() (string, error) {
+// Maybe we can create a builder pattern adding a constructor
+// that hides the logic that checks if the file is or not a dir and so on.
 
+func (o *Object) delete() (string, error) {
+	// method used to delete the object thus deleting the file or dir in the filesystem
 	if _, err := utils.CheckPath(o.Path); err != nil {
 		fmt.Println(err)
 		return o.Name, err
@@ -33,14 +40,102 @@ func (o *Object) delete() (string, error) {
 	return o.Name, nil
 }
 
-func GetObject(c *fiber.Ctx) error {
-	// Create the file list
-
+func (o *Object) list() ([]*Object, error) {
+	// Performs an ls to retrieve the information. If its a file, returns the empty list and an error
 	var objectList []*Object
 
-	c.Set("Access-Control-Allow-Origin", "*")
+	entries, err := os.ReadDir(o.Path)
+
+	if err != nil {
+		return objectList, err
+	}
+
+	for _, entry := range entries {
+
+		info, err := entry.Info()
+
+		if err != nil {
+			return objectList, err
+		}
+
+		object := &Object{
+			Name:       info.Name(),
+			File:       !info.IsDir(),
+			Path:       o.Path,
+			Permission: int(info.Mode().Perm()),
+		}
+
+		objectList = append(objectList, object)
+
+	}
+
+	return objectList, nil
+}
+
+func (o *Object) read() (map[string]string, error) {
+	// reads the file and returns a map with the key being the result and the value being its contents
+	contentMap := make(map[string]string)
+
+	content, err := os.ReadFile(o.Path)
+
+	if err != nil {
+		return contentMap, err
+	}
+
+	contentMap["res"] = string(content)
+
+	return contentMap, err
+}
+
+func (o *Object) persist() (*Object, error) {
+	// Given the object, we persist it in the filesystem
+
+	if o.File {
+		if err := os.MkdirAll(o.Path, fs.FileMode(o.Permission)); err != nil {
+			return o, err
+		}
+	}
+
+	// If its a file, then create the specified file
+
+	if err := os.WriteFile(o.Path, []byte(""), fs.FileMode(o.Permission)); err != nil {
+		return o, err
+	}
+
+	return o, nil
+}
+
+func GetObject(c *fiber.Ctx) error {
+	// Define the slice that will contain the objecs
+	var objectList []*Object
+
+	// Construct the object
+	pathSlice := strings.Split(c.Path(), "/")
+
+	objectName := pathSlice[len(pathSlice)-1]
 
 	localPath := utils.GetLocalPath(c.Path())
+
+	isFile, err := utils.IsFile(localPath)
+
+	if err != nil {
+		// Error returned, something went wrong checking the file mode
+		log.Printf("Error checking file mode: %v", err)
+
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": "Could not check the file mode",
+		})
+	}
+
+	object := &Object{
+		Name: objectName,
+		Path: localPath,
+		File: isFile,
+		// No need to define permission here since we don't need it
+	}
+
+	// temp, for debug, pending delete
+	c.Set("Access-Control-Allow-Origin", "*")
 
 	// Check if file exists
 
@@ -49,23 +144,10 @@ func GetObject(c *fiber.Ctx) error {
 			"error": "File not found",
 		})
 	}
-	// Check if its a file or a directory
-
-	isFile, err := utils.IsFile(localPath)
-
-	if err != nil {
-		// Error returned, something went wrong checking the file mode
-		log.Printf("Error checking file mode: %v", err)
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"error": "Could not check the file mode",
-		})
-	}
-
-	// If its a file, read the file
 
 	if isFile {
 
-		contents, err := utils.ReadObject(localPath)
+		contents, err := object.read()
 
 		if err != nil {
 			log.Printf("Error reading file: %v", err)
@@ -79,36 +161,14 @@ func GetObject(c *fiber.Ctx) error {
 
 	// If its a dir, return the files inside the dir
 
-	entries, err := os.ReadDir(localPath)
+	objectList, err = object.list()
 
 	if err != nil {
-		log.Printf("Error getting file info: %v", err)
+		log.Printf("Error reading dir: %v", err)
+
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
 			"error": "Could not read the specified directory",
 		})
-	}
-
-	for _, entry := range entries {
-
-		//o := new(Object) // https://www.freecodecamp.org/news/new-vs-make-functions-in-go/
-
-		info, err := entry.Info()
-
-		if err != nil {
-			// Could not get the path info
-			log.Printf("Error getting file info: %v", err)
-			c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-				"error": "Error processing directory entry",
-			})
-		}
-
-		object := &Object{
-			Name: info.Name(),
-			File: !info.IsDir(),
-		}
-
-		objectList = append(objectList, object)
-
 	}
 
 	return c.JSON(objectList)
@@ -116,20 +176,28 @@ func GetObject(c *fiber.Ctx) error {
 
 func CreateObject(c *fiber.Ctx) error {
 	// A payload specifying the type is needed. Default will be file but if file: false in payload then create a dir
+	// On success, we return the object
+	// The payload can have all data related to the object
+	// The only data that is a must is the name, the path will be the one targeted by the request
+
+	// we create the blank object just to bind it to the request
 	object := new(Object)
 
 	if err := c.BodyParser(object); err != nil { // Bind the request body to the Object struct
 		log.Printf("Error parsing request body %v", err)
+
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
 			"error": "Invalid request paylad",
 		})
 	}
 
-	// Create the file on the specified path
+	// We check the path from the request and using the file name we add the path attr to the object
 
 	localPath := utils.GetLocalPath(c.Path())
 
 	targetPath := path.Join(localPath, object.Name)
+
+	object.Path = targetPath
 
 	if exists, _ := utils.CheckPath(targetPath); exists {
 		return c.Status(fiber.StatusConflict).JSON(fiber.Map{
@@ -137,13 +205,13 @@ func CreateObject(c *fiber.Ctx) error {
 		})
 	}
 
-	// Check if its a file or a directory in the local storage
+	// Check if its a file or a directory in the host since we can't create a file inside a file
 
 	isFile, err := utils.IsFile(localPath)
 
 	if err != nil {
-		// Error returned, something went wrong checking the file mode
 		log.Printf("Error checking file mode: %v", err)
+
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
 			"error": "Error checking file mode",
 		})
@@ -155,36 +223,19 @@ func CreateObject(c *fiber.Ctx) error {
 		})
 	}
 
-	// If its a dir, then create the specified dir
+	// checks were done, persist the object
 
-	if !object.File {
+	object, err = object.persist()
 
-		if err := os.MkdirAll(targetPath, 0755); err != nil {
-			log.Printf("Error creating directory: %v", err)
-			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-				"error": "Error creating file",
-			})
-		}
+	if err != nil {
+		log.Printf("Error creating directory: %v", err)
 
-		return c.JSON(fiber.Map{
-			"message": "Directory created successfully",
-			"name":    object.Name,
-		})
-	}
-
-	// If its a file, then create the specified file
-
-	if err := os.WriteFile(targetPath, []byte(""), 0644); err != nil {
-		log.Printf("Error creating file: %v", err)
-		c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
 			"error": "Error creating file",
 		})
 	}
 
-	return c.JSON(fiber.Map{
-		"message": "File created successfully",
-		"name":    object.Name,
-	})
+	return c.JSON(object)
 }
 
 func DeleteOjbect(c *fiber.Ctx) error {
