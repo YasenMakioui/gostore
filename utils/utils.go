@@ -64,21 +64,6 @@ func IsFile(path string) (bool, error) {
 	return true, err
 }
 
-func ReadObject(path string) (map[string]string, error) {
-
-	contentMap := make(map[string]string)
-
-	content, err := os.ReadFile(path)
-
-	if err != nil {
-		return contentMap, err
-	}
-
-	contentMap["res"] = string(content)
-
-	return contentMap, err
-}
-
 func ChangeName() {
 
 }
