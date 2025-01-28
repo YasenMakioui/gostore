@@ -1,5 +1,13 @@
 # gostore
 
+A fiber app used to manage files in a server using HTTP requests.
+
+Next steps:
+
+* Add tests. Starting with object handler and object service
+* Implement monitoring of disk usage
+* Implement backups and the posibility to upload them to a cloud solution like S3
+
 setup:
 
 ```bash
