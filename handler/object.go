@@ -1,109 +1,14 @@
 package handler
 
 import (
-	"fmt"
-	"io/fs"
 	"log"
-	"os"
 	"path"
 	"strings"
 
+	. "github.com/YasenMakioui/gostore/service" // adding a dot to not use service.something
 	"github.com/YasenMakioui/gostore/utils"
 	"github.com/gofiber/fiber/v2"
 )
-
-// Logging should be handled by the handler, do not add logs on object methods.
-
-// Object maps directly to a file or directory in the host system
-type Object struct {
-	File       bool   `json:"file"`
-	Name       string `json:"name"`
-	Path       string `json:"path"`
-	Permission int    `json:"permission"`
-}
-
-// Maybe we can create a builder pattern adding a constructor
-// that hides the logic that checks if the file is or not a dir and so on.
-
-func (o *Object) delete() (string, error) {
-	// method used to delete the object thus deleting the file or dir in the filesystem
-	if _, err := utils.CheckPath(o.Path); err != nil {
-		fmt.Println(err)
-		return o.Name, err
-	}
-
-	if err := os.RemoveAll(o.Path); err != nil {
-		fmt.Println(err)
-		return o.Name, err
-	}
-
-	return o.Name, nil
-}
-
-func (o *Object) list() ([]*Object, error) {
-	// Performs an ls to retrieve the information. If its a file, returns the empty list and an error
-	var objectList []*Object
-
-	entries, err := os.ReadDir(o.Path)
-
-	if err != nil {
-		return objectList, err
-	}
-
-	for _, entry := range entries {
-
-		info, err := entry.Info()
-
-		if err != nil {
-			return objectList, err
-		}
-
-		object := &Object{
-			Name:       info.Name(),
-			File:       !info.IsDir(),
-			Path:       o.Path,
-			Permission: int(info.Mode().Perm()),
-		}
-
-		objectList = append(objectList, object)
-
-	}
-
-	return objectList, nil
-}
-
-func (o *Object) read() (map[string]string, error) {
-	// reads the file and returns a map with the key being the result and the value being its contents
-	contentMap := make(map[string]string)
-
-	content, err := os.ReadFile(o.Path)
-
-	if err != nil {
-		return contentMap, err
-	}
-
-	contentMap["res"] = string(content)
-
-	return contentMap, err
-}
-
-func (o *Object) persist() (*Object, error) {
-	// Given the object, we persist it in the filesystem
-
-	if o.File {
-		if err := os.MkdirAll(o.Path, fs.FileMode(o.Permission)); err != nil {
-			return o, err
-		}
-	}
-
-	// If its a file, then create the specified file
-
-	if err := os.WriteFile(o.Path, []byte(""), fs.FileMode(o.Permission)); err != nil {
-		return o, err
-	}
-
-	return o, nil
-}
 
 func GetObject(c *fiber.Ctx) error {
 	// Define the slice that will contain the objecs
@@ -147,7 +52,7 @@ func GetObject(c *fiber.Ctx) error {
 
 	if isFile {
 
-		contents, err := object.read()
+		contents, err := object.Read()
 
 		if err != nil {
 			log.Printf("Error reading file: %v", err)
@@ -161,7 +66,7 @@ func GetObject(c *fiber.Ctx) error {
 
 	// If its a dir, return the files inside the dir
 
-	objectList, err = object.list()
+	objectList, err = object.List()
 
 	if err != nil {
 		log.Printf("Error reading dir: %v", err)
@@ -174,6 +79,7 @@ func GetObject(c *fiber.Ctx) error {
 	return c.JSON(objectList)
 }
 
+// Maps to POST method
 func CreateObject(c *fiber.Ctx) error {
 	// A payload specifying the type is needed. Default will be file but if file: false in payload then create a dir
 	// On success, we return the object
@@ -225,7 +131,7 @@ func CreateObject(c *fiber.Ctx) error {
 
 	// checks were done, persist the object
 
-	object, err = object.persist()
+	object, err = object.Persist()
 
 	if err != nil {
 		log.Printf("Error creating directory: %v", err)
@@ -238,6 +144,7 @@ func CreateObject(c *fiber.Ctx) error {
 	return c.JSON(object)
 }
 
+// Maps to DELETE method
 func DeleteOjbect(c *fiber.Ctx) error {
 
 	object := new(Object)
@@ -247,7 +154,7 @@ func DeleteOjbect(c *fiber.Ctx) error {
 	object.Name = pathSlice[len(pathSlice)-1]
 	object.Path = utils.GetLocalPath(c.Path())
 
-	if _, err := object.delete(); err != nil {
+	if _, err := object.Delete(); err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
 			"error": "Could not delete de file",
 		})
@@ -259,6 +166,7 @@ func DeleteOjbect(c *fiber.Ctx) error {
 	})
 }
 
+// Maps to PUT method
 func ModifyObject(c *fiber.Ctx) error {
 	// move object to another dir
 	// change object name
