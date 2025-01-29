@@ -14,9 +14,9 @@ import (
 type Object struct { // make it private! object. The only way to get the object should be with the constructor
 	File       bool   `json:"file"`
 	Name       string `json:"name"`
-	Path       string `json:"path"`
+	Path       string `json:"path"` // Maybe create a struct for Path since we can't export it https://stackoverflow.com/questions/50319404/has-json-tag-but-not-exported
 	Permission int    `json:"permission"`
-}
+} // also the properties of the object can be private
 
 // Constructor
 func NewObject(file bool, name string, path string, permission int) (*Object, error) {
@@ -29,13 +29,16 @@ func NewObject(file bool, name string, path string, permission int) (*Object, er
 	// check if the path is actually a valid path
 
 	object.Path = path
+	// TODO: Validate path. Carefull with using something like checking if exists.
 
-	// validate that the permission is a valid unix file mode.
-
+	// Check if its four digits length
+	if permission < 1000 || permission > 9999 {
+		// provisional. TODO: Add a better validation for UNIX bytes
+		permission = 0644 // Since its incorrect we add a default value
+	}
 	object.Permission = permission
 
 	return object, nil
-
 }
 
 // Maybe we can create a builder pattern adding a constructor

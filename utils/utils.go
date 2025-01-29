@@ -64,14 +64,21 @@ func IsFile(path string) (bool, error) {
 	return true, err
 }
 
-func ChangeName() {
+// func ValidateFileMode(fileMode int) (bool) {
+// 	// Following https://www.gnu.org/software/coreutils/manual/html_node/Mode-Structure.html
+// 	// and https://www.gnu.org/software/coreutils/manual/html_node/Numeric-Modes.html
 
-}
+// 	// Use strings since its easier for the use of slices and loops
 
-func Move() {
+// 	validBits := []string{"4","2","1"}
 
-}
+// 	fileModeSlice := strings.Split(strconv.Itoa(fileMode),"")
 
-func ChangePermissions() {
+// 	for _, v := range fileModeSlice {
+// 		if slices.Contains(validBits, v) {
+// 			// Incomplete.
+// 		}
+// 	}
 
-}
+// 	return true
+// }
