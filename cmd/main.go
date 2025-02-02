@@ -1,8 +1,8 @@
 package main
 
 import (
-	"github.com/YasenMakioui/gostore/middleware"
-	"github.com/YasenMakioui/gostore/router"
+	"github.com/YasenMakioui/gostore/internal/middleware"
+	"github.com/YasenMakioui/gostore/internal/router"
 	"github.com/gofiber/fiber/v2"
 )
 

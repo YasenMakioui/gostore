@@ -2,6 +2,7 @@ package utils
 
 import (
 	"fmt"
+	"io/fs"
 	"os"
 	"path"
 	"path/filepath"
@@ -23,15 +24,19 @@ func GetFilePath(gostorePath, uriPath string, prefix string) string {
 	return path
 }
 
-func CheckPath(path string) (bool, error) {
+func GetFileAttributes(path string) {
+	// Returns the file attributes
+}
+
+func CheckPath(path string) error {
 
 	_, err := os.Stat(path)
 
 	if err != nil {
-		return false, err
+		return fmt.Errorf("Path does not exist")
 	}
 
-	return true, nil
+	return nil
 }
 
 func AddTrailingSlash(str string) string {
@@ -57,11 +62,15 @@ func GetLocalPath(contextPath string) string {
 func IsFile(path string) (bool, error) {
 	mode, err := os.Stat(path)
 
-	if mode.IsDir() {
-		return false, err
+	if err != nil {
+		return true, fmt.Errorf("Could not get file/dir stats")
 	}
 
-	return true, err
+	if mode.IsDir() {
+		return false, nil
+	}
+
+	return true, nil
 }
 
 // func ValidateFileMode(fileMode int) (bool) {
@@ -82,3 +91,15 @@ func IsFile(path string) (bool, error) {
 
 // 	return true
 // }
+
+func GetFileMode(key string) (fs.FileMode, error) {
+	info, err := os.Stat(key)
+
+	mode := info.Mode()
+
+	if err != nil {
+		return mode, fmt.Errorf("Could not get file stats")
+	}
+
+	return mode, nil
+}
