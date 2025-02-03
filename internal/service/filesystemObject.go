@@ -9,15 +9,16 @@ import (
 	"github.com/YasenMakioui/gostore/pkg/utils"
 )
 
-// Struct used just to map requests and return data
-type FilesystemObjectResponse struct {
+// Since we want to bind the payload to a struct but we have the fsobject to remain private
+// We need this struct.
+type FilesystemObjectPayload struct {
 	Name string `json:"name"`
-	Mode string `json:"mode"`
+	Mode string `json:"mode"` // We put it as a string to use the octal format
 	File bool   `json:"file"`
 }
 
 // Object maps directly to a file or directory in the host system
-type FilesystemObject struct {
+type FilesystemObject struct { // make this object private
 	name string // This is the key. The name represents the full path (file included)
 	mode fs.FileMode
 	file bool

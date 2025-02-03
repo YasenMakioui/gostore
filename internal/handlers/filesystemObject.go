@@ -11,6 +11,8 @@ import (
 	//"fmt"
 
 	"fmt"
+	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 
@@ -21,12 +23,12 @@ import (
 	"github.com/gofiber/fiber/v2"
 )
 
-func GetObject(c *fiber.Ctx) error {
+func GetObject(requestContext *fiber.Ctx) error {
 
-	key := utils.GetLocalPath(c.Path())
+	key := utils.GetLocalPath(requestContext.Path())
 
 	if err := utils.CheckPath(key); err != nil {
-		return c.Status(fiber.StatusNotFound).JSON(
+		return requestContext.Status(fiber.StatusNotFound).JSON(
 			errors.FormatError("Not found"),
 		)
 	}
@@ -34,7 +36,7 @@ func GetObject(c *fiber.Ctx) error {
 	mode, err := utils.GetFileMode(key)
 
 	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(
+		return requestContext.Status(fiber.StatusInternalServerError).JSON(
 			errors.FormatError("Could not retrieve information from file/dir"),
 		)
 	}
@@ -45,7 +47,7 @@ func GetObject(c *fiber.Ctx) error {
 
 	if isFile {
 		if err != nil {
-			return c.Status(fiber.StatusInternalServerError).JSON(
+			return requestContext.Status(fiber.StatusInternalServerError).JSON(
 				errors.FormatError("Could not map to file object"),
 			)
 		}
@@ -53,18 +55,18 @@ func GetObject(c *fiber.Ctx) error {
 		contents, err := filesystemObject.Read()
 
 		if err != nil {
-			return c.Status(fiber.StatusInternalServerError).JSON(
+			return requestContext.Status(fiber.StatusInternalServerError).JSON(
 				errors.FormatError("Could not read the file"),
 			)
 		}
 
-		return c.Send(contents)
+		return requestContext.Send(contents)
 	}
 
 	entries, err := filesystemObject.List()
 
 	// Create returnable object.
-	var responseData []FilesystemObjectResponse
+	var responseData []FilesystemObjectPayload
 
 	for _, value := range entries {
 
@@ -72,7 +74,7 @@ func GetObject(c *fiber.Ctx) error {
 		fmt.Println(value)
 		name := strings.Replace(value.GetName(), config.Config("BASEDIR"), "", -1)
 
-		responseObject := &FilesystemObjectResponse{
+		responseObject := &FilesystemObjectPayload{
 			Name: name,
 			Mode: strconv.FormatInt(int64(value.GetMode()), 8),
 			File: value.GetFile(),
@@ -84,19 +86,65 @@ func GetObject(c *fiber.Ctx) error {
 	}
 
 	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(
+		return requestContext.Status(fiber.StatusInternalServerError).JSON(
 			errors.FormatError(err.Error()),
 		)
 	}
 
-	return c.JSON(
+	return requestContext.JSON(
 		responseData,
 	)
 
 }
 
 // Maps to POST method
-//func CreateObject(c *fiber.Ctx) error { // pragmatic -> change the c to requestContext maybe
+func CreateObject(requestContext *fiber.Ctx) error {
+	// Create the payload object
+	payload := new(FilesystemObjectPayload)
+
+	if err := requestContext.BodyParser(payload); err != nil {
+		return requestContext.Status(fiber.StatusBadRequest).JSON(
+			errors.FormatError("Invalid payload"),
+		)
+	}
+
+	// Create local path. We get something like /dir/file and we need to merge it with basedir
+
+	name := filepath.Join(config.Config("BASEDIR"), payload.Name)
+
+	// Check if the file exists. If so return an error.
+
+	if err := utils.CheckPath(name); err == nil {
+		return requestContext.Status(fiber.StatusConflict).JSON(
+			errors.FormatError(
+				fmt.Sprintf("%v already exists", name),
+			),
+		)
+	}
+
+	// File does not exist. We can create it.
+
+	// We need to create the filemode
+
+	mode, err := strconv.Atoi(payload.Mode)
+
+	if err != nil {
+		return requestContext.Status(fiber.StatusBadRequest).JSON(
+			errors.FormatError("Invalid mode"),
+		)
+	}
+
+	NewFilesystemObject(payload.Name, os.FileMode(mode), payload.File)
+
+	return requestContext.JSON(
+		payload,
+	)
+
+	// NOTES - filemode not aplyinh correctly
+	// This post can be made anywhere.
+	// Modify to use the path of the request to create a file
+}
+
 // A payload specifying the type is needed. Default will be file but if file: false in payload then create a dir
 // On success, we return the object
 // The payload can have all data related to the object

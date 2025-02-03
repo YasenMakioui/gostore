@@ -13,7 +13,7 @@ func SetupRoutes(app *fiber.App) {
 	})
 
 	api.Get("/store/*", GetObject)
-	// api.Post("/store/*", CreateObject)
+	api.Post("/store/*", CreateObject)
 	// api.Delete("/store/*", DeleteOjbect)
 	// api.Put("/store/*", ModifyObject)
 
