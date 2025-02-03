@@ -12,7 +12,7 @@ import (
 // Struct used just to map requests and return data
 type FilesystemObjectResponse struct {
 	Name string `json:"name"`
-	Mode int    `json:"mode"`
+	Mode string `json:"mode"`
 	File bool   `json:"file"`
 }
 
@@ -128,7 +128,7 @@ func (dir *FilesystemObject) List() ([]FilesystemObject, error) {
 		}
 
 		name := filepath.Join(dir.name, info.Name())
-		mode := info.Mode()
+		mode := info.Mode().Perm() // only the 3 bits
 		isFile := !info.IsDir()
 
 		fsObject = FilesystemObject{

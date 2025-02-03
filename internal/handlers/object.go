@@ -11,6 +11,7 @@ import (
 	//"fmt"
 
 	"fmt"
+	"strconv"
 	"strings"
 
 	"github.com/YasenMakioui/gostore/config"
@@ -73,7 +74,7 @@ func GetObject(c *fiber.Ctx) error {
 
 		responseObject := &FilesystemObjectResponse{
 			Name: name,
-			Mode: int(value.GetMode()),
+			Mode: strconv.FormatInt(int64(value.GetMode()), 8),
 			File: value.GetFile(),
 		}
 
