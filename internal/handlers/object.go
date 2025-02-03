@@ -8,8 +8,12 @@ import (
 	//"strconv"
 	//"strings"
 
-	"fmt"
+	//"fmt"
 
+	"fmt"
+	"strings"
+
+	"github.com/YasenMakioui/gostore/config"
 	. "github.com/YasenMakioui/gostore/internal/service" // adding a dot to not use service.something
 	"github.com/YasenMakioui/gostore/pkg/errors"
 	"github.com/YasenMakioui/gostore/pkg/utils"
@@ -58,17 +62,35 @@ func GetObject(c *fiber.Ctx) error {
 
 	entries, err := filesystemObject.List()
 
+	// Create returnable object.
+	var responseData []FilesystemObjectResponse
+
+	for _, value := range entries {
+
+		// Extract only the app root. We don't want the absolute path given to the user.
+		fmt.Println(value)
+		name := strings.Replace(value.GetName(), config.Config("BASEDIR"), "", -1)
+
+		responseObject := &FilesystemObjectResponse{
+			Name: name,
+			Mode: int(value.GetMode()),
+			File: value.GetFile(),
+		}
+
+		responseData = append(
+			responseData, *responseObject,
+		)
+	}
+
 	if err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(
 			errors.FormatError(err.Error()),
 		)
 	}
 
-	fmt.Println(entries)
-
-	return c.JSON(fiber.Map{
-		entries, //convert to map before sending. This does not work!
-	})
+	return c.JSON(
+		responseData,
+	)
 
 }
 

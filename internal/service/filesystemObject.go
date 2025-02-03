@@ -9,6 +9,13 @@ import (
 	"github.com/YasenMakioui/gostore/pkg/utils"
 )
 
+// Struct used just to map requests and return data
+type FilesystemObjectResponse struct {
+	Name string `json:"name"`
+	Mode int    `json:"mode"`
+	File bool   `json:"file"`
+}
+
 // Object maps directly to a file or directory in the host system
 type FilesystemObject struct {
 	name string // This is the key. The name represents the full path (file included)
@@ -46,6 +53,10 @@ func (o *FilesystemObject) GetName() string {
 
 func (o *FilesystemObject) GetMode() fs.FileMode {
 	return o.mode
+}
+
+func (o *FilesystemObject) GetFile() bool {
+	return o.file
 }
 
 func (o *FilesystemObject) SetName(name string) error {
