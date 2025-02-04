@@ -33,15 +33,17 @@ func NewFilesystemObject(name string, mode fs.FileMode, file bool) (*FilesystemO
 		file: file,
 	}
 
-	if err := utils.CheckPath(name); err != nil {
-		if file {
-			if err := createFile(filesystemObject); err != nil {
-				return filesystemObject, err // Already formatted error from createFile
-			}
-		} else {
-			if err := createDirectory(filesystemObject); err != nil {
-				return filesystemObject, err
-			}
+	if err := utils.CheckPath(name); err == nil {
+		return filesystemObject, fmt.Errorf("File already exist")
+	}
+
+	if file {
+		if err := createFile(filesystemObject); err != nil {
+			return filesystemObject, err // Already formatted error from createFile
+		}
+	} else {
+		if err := createDirectory(filesystemObject); err != nil {
+			return filesystemObject, err
 		}
 	}
 
@@ -146,21 +148,37 @@ func (dir *FilesystemObject) List() ([]FilesystemObject, error) {
 
 func createFile(file *FilesystemObject) error { // private since it will be executed by the constructor once
 
-	if _, err := os.Stat(file.name); err != nil {
+	if _, err := os.Stat(file.name); err == nil {
 		return fmt.Errorf("File %v already exists", file.name)
 	}
 
 	f, err := os.Create(file.name)
 
+	// change the permissions
+
 	if err != nil {
 		return fmt.Errorf("Could not create file %v: %v", file.name, err)
 	}
 	defer f.Close()
+
+	fmt.Println(file.mode)
+	if err := os.Chmod(file.name, file.mode); err != nil {
+		// We could not change permissions. Delete the file.
+		if err := os.Remove(file.name); err != nil {
+			return fmt.Errorf("Created the file without the specified permissions but could not remove it: %v", err)
+		}
+		return fmt.Errorf("An error occured while adding file permissions %v", err)
+	}
+
 	return nil
 }
 
 func createDirectory(dir *FilesystemObject) error {
 	if err := os.Mkdir(dir.name, dir.mode); err != nil {
+		if err := os.Chmod(dir.name, dir.mode); err != nil { //this is not changing the dir permissions.
+			// check if it changes them in a linux system. Maybe we don't need the chmod.
+			return fmt.Errorf("An error occured while adding file permissions %v", err)
+		}
 		return fmt.Errorf("Could not create dir %v: %v", dir.name, err)
 	}
 

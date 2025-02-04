@@ -109,24 +109,19 @@ func CreateObject(requestContext *fiber.Ctx) error {
 	}
 
 	// Create local path. We get something like /dir/file and we need to merge it with basedir
+	// /
+	targetPath := strings.Replace(requestContext.Path(), config.Config("GOSTOREPATH"), "", -1)
 
-	name := filepath.Join(config.Config("BASEDIR"), payload.Name)
+	name := filepath.Join(config.Config("BASEDIR"), targetPath)
 
-	// Check if the file exists. If so return an error.
-
-	if err := utils.CheckPath(name); err == nil {
-		return requestContext.Status(fiber.StatusConflict).JSON(
-			errors.FormatError(
-				fmt.Sprintf("%v already exists", name),
-			),
-		)
-	}
+	payload.Name = name
 
 	// File does not exist. We can create it.
 
 	// We need to create the filemode
+	// We get the mode as a string and we convert it to octal
 
-	mode, err := strconv.Atoi(payload.Mode)
+	mode, err := strconv.ParseInt(payload.Mode, 8, 32)
 
 	if err != nil {
 		return requestContext.Status(fiber.StatusBadRequest).JSON(
@@ -134,7 +129,11 @@ func CreateObject(requestContext *fiber.Ctx) error {
 		)
 	}
 
-	NewFilesystemObject(payload.Name, os.FileMode(mode), payload.File)
+	if _, err := NewFilesystemObject(payload.Name, os.FileMode(mode), payload.File); err != nil {
+		return requestContext.Status(fiber.StatusBadRequest).JSON(
+			errors.FormatError(fmt.Sprintf("Internal server error: %v", err)),
+		)
+	}
 
 	return requestContext.JSON(
 		payload,
