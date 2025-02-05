@@ -50,6 +50,17 @@ func NewFilesystemObject(name string, mode fs.FileMode, file bool) (*FilesystemO
 	return filesystemObject, nil
 }
 
+func NewFilesystemObjectMapper(name string) *FilesystemObject {
+	// This object is created using the name.
+	// Does not create an object
+	// Used when we want to perform operations on already existing objects
+	return &FilesystemObject{
+		name: name,
+		mode: 0640,
+		file: true,
+	}
+}
+
 func (o *FilesystemObject) GetName() string {
 	return o.name
 }

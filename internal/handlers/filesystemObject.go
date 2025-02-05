@@ -23,7 +23,7 @@ import (
 	"github.com/gofiber/fiber/v2"
 )
 
-func GetObject(requestContext *fiber.Ctx) error {
+func GetFilesystemObject(requestContext *fiber.Ctx) error {
 
 	key := utils.GetLocalPath(requestContext.Path())
 
@@ -98,7 +98,7 @@ func GetObject(requestContext *fiber.Ctx) error {
 }
 
 // Maps to POST method
-func CreateObject(requestContext *fiber.Ctx) error {
+func CreateFilesystemObject(requestContext *fiber.Ctx) error {
 	// Create the payload object
 	payload := new(FilesystemObjectPayload)
 
@@ -135,168 +135,64 @@ func CreateObject(requestContext *fiber.Ctx) error {
 		)
 	}
 
+	// field name contains the full system path and should be the root of the app
 	return requestContext.JSON(
 		payload,
 	)
 
-	// NOTES - filemode not aplyinh correctly
-	// This post can be made anywhere.
-	// Modify to use the path of the request to create a file
+	// NOTES - directory permissions are not set correctly.
 }
 
-// A payload specifying the type is needed. Default will be file but if file: false in payload then create a dir
-// On success, we return the object
-// The payload can have all data related to the object
-// The only data that is a must is the name, the path will be the one targeted by the request
+func DeleteFilesystemOjbect(requestContext *fiber.Ctx) error {
+	// We need the localpath
+	targetPath := strings.Replace(requestContext.Path(), config.Config("GOSTOREPATH"), "", -1)
 
-// object, err := createObject(c.Body())
+	name := filepath.Join(config.Config("BASEDIR"), targetPath)
 
-// if err != nil {
-// 	c.Status(fiber.StatusInternalServerError).JSON(
-// 		errors.FormatError(err.Error()),
-// 	)
-// }
+	fsObject := NewFilesystemObjectMapper(name)
 
-// // We check the path from the request and using the file name we add the path attr to the object
+	if _, err := fsObject.Delete(); err != nil {
+		return requestContext.Status(fiber.StatusInternalServerError).JSON(
+			errors.FormatError(err.Error()),
+		)
+	}
 
-// localPath := utils.GetLocalPath(c.Path())
+	// This is returning the full path of the system. Should return the root of the program.
+	return requestContext.JSON(fiber.Map{
+		"name": name,
+	})
+}
 
-// targetPath := path.Join(localPath, object.Name) // gettter
+func ModifyFilesystemObject(requestContext *fiber.Ctx) error {
 
-// object.Path = targetPath // setter
+	// PUT to /dir/testdir/file and payload with modifications
+	// Ignore other data in the payload that is not mode or name
 
-// if exists, _ := utils.CheckPath(targetPath); exists {
-// 	return c.Status(fiber.StatusConflict).JSON(
-// 		errors.FormatError("File or directory already exists"),
-// 	)
-// }
+	payload := struct {
+		Name string `json:"name"`
+		Mode string `json:"mode"`
+	}{}
 
-// // Check if its a file or a directory in the host since we can't create a file inside a file
+	if err := requestContext.BodyParser(&payload); err != nil {
+		fmt.Println(err)
+		return requestContext.Status(fiber.StatusBadRequest).JSON(
+			errors.FormatError("Invalid payload. Add fields name and mode"),
+		)
+	}
 
-// isFile, err := utils.IsFile(localPath)
+	octalBits, err := strconv.ParseInt(payload.Mode, 8, 32)
 
-// if err != nil {
-// 	log.Printf("Error checking file mode: %v", err)
+	if err != nil {
+		requestContext.JSON(
+			errors.FormatError("Invalid file mode"),
+		)
+	}
 
-// 	return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-// 		"error": "Error checking file mode",
-// 	})
-// }
+	// Careful here. Control if the user is using the correct path in the app context and not the system context.
+	//mode := os.FileMode(octalBits)
+	//name := payload.Name
+	// convert payload.mode into a valid fs.FileMode
+	fmt.Println(os.FileMode(octalBits))
 
-// if isFile {
-// 	return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-// 		"error": "Cannot create an object inside a file",
-// 	})
-// }
-
-// // checks were done, persist the object
-
-// object, err = object.Persist()
-
-// if err != nil {
-// 	log.Printf("Error creating directory: %v", err)
-
-// 	return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-// 		"error": "Error creating file",
-// 	})
-// }
-
-// return c.JSON(object)
-//}
-
-// Maps to DELETE method
-// func DeleteOjbect(c *fiber.Ctx) error {
-
-// 	object := new(Object)
-
-// 	pathSlice := strings.Split(c.Path(), "/")
-
-// 	object.Name = pathSlice[len(pathSlice)-1]
-// 	object.Path = utils.GetLocalPath(c.Path())
-
-// 	if _, err := object.Delete(); err != nil {
-// 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-// 			"error": "Could not delete de file",
-// 		})
-// 	}
-
-// 	return c.JSON(fiber.Map{
-// 		"message": "Deleted successfully",
-// 		"name":    object.Name,
-// 	})
-// }
-
-// Maps to PUT method
-// func ModifyObject(c *fiber.Ctx) error {
-// 	// move object to another dir
-// 	// change object name
-// 	// modify object permissions
-// 	// Payload
-// 	/*
-// 				{
-// 					target: "",
-// 					attributes: {
-// 						file: ""
-// 						name: "",
-// 		                permission: "",
-// 					    path: "",
-// 					}
-// 				}
-// 	*/
-// 	// 1. read the target to gather information about the object
-// 	// 2. use the target informationto create the object
-// 	// 3. change the attributes
-// 	// 4. persist
-// 	// We update the attributes and then we persist it
-
-// 	//object := new(Object)
-
-// 	// bind the object data
-
-// 	//modifiedObject := NewObject()
-
-// 	return c.SendString("modify")
-// }
-
-/*
-	Private functions used by the handlers
-*/
-
-// func createObject(body []byte) (*Object, error) {
-// 	// Converts the given body to a new object of type Object
-// 	var data map[string]string
-
-// 	if err := json.Unmarshal(body, &data); err != nil { // passing the reference we don't need a return value
-// 		return nil, stdErrors.New("Invalid JSON")
-// 	}
-
-// 	if err := validateObjectPayload(data); err != nil {
-// 		return nil, stdErrors.New(`
-// 		Invalid Format. Follow the format:
-// 		{
-// 			"file": false <---- optional
-// 			"name": "filename" <---- required
-// 			"path": "filepath" <---- required
-// 			"mode": 0755 <---- optional
-// 		 }
-// 		`)
-// 	}
-
-// 	file, _ := strconv.ParseBool(data["file"])
-// 	name := data["name"]
-// 	objectPath := data["path"]
-// 	mode, _ := strconv.Atoi(data["mode"])
-
-// 	object, err := NewObject(
-// 		file,
-// 		name,
-// 		objectPath,
-// 		mode,
-// 	)
-
-// 	if err != nil {
-// 		return nil, err
-// 	}
-
-// 	return object, err
-// }
+	return requestContext.JSON(payload)
+}

@@ -12,10 +12,10 @@ func SetupRoutes(app *fiber.App) {
 		return c.SendString("Root")
 	})
 
-	api.Get("/store/*", GetObject)
-	api.Post("/store/*", CreateObject)
-	// api.Delete("/store/*", DeleteOjbect)
-	// api.Put("/store/*", ModifyObject)
+	api.Get("/store/*", GetFilesystemObject)
+	api.Post("/store/*", CreateFilesystemObject)
+	api.Delete("/store/*", DeleteFilesystemOjbect)
+	api.Put("/store/*", ModifyFilesystemObject)
 
 	api.Get("/stats/usage/disk", GetDiskUsage)
 
