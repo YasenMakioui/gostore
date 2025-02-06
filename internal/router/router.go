@@ -17,6 +17,10 @@ func SetupRoutes(app *fiber.App) {
 	api.Delete("/store/*", DeleteFilesystemOjbect)
 	api.Put("/store/*", ModifyFilesystemObject)
 
-	api.Get("/stats/usage/disk", GetDiskUsage)
+	//api.Get("/stats", GetStats)
+	//api.Get("/stats/backups", GetBackupStats) // will return the backup stats like running backups and so on
 
+	api.Get("/backup/*", GetBackups)
+	//api.Post("/backup/*", PostBackup)
+	//api.Delete("/backup/*", DeleteBackup)
 }
