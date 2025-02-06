@@ -135,7 +135,9 @@ func CreateFilesystemObject(requestContext *fiber.Ctx) error {
 		)
 	}
 
-	// field name contains the full system path and should be the root of the app
+	// Remove the filesystem path
+	payload.Name = strings.Replace(payload.Name, config.Config("BASEDIR"), "", -1)
+
 	return requestContext.JSON(
 		payload,
 	)
@@ -157,7 +159,9 @@ func DeleteFilesystemOjbect(requestContext *fiber.Ctx) error {
 		)
 	}
 
-	// This is returning the full path of the system. Should return the root of the program.
+	// We take off the host fs part. Leaving only the gostore path
+	name = strings.Replace(name, config.Config("BASEDIR"), "", -1)
+
 	return requestContext.JSON(fiber.Map{
 		"name": name,
 	})
@@ -165,8 +169,10 @@ func DeleteFilesystemOjbect(requestContext *fiber.Ctx) error {
 
 func ModifyFilesystemObject(requestContext *fiber.Ctx) error {
 
-	// PUT to /dir/testdir/file and payload with modifications
-	// Ignore other data in the payload that is not mode or name
+	// Extract the filepath. relative would be something like /manual2
+	gostorePath := strings.Replace(requestContext.Path(), config.Config("GOSTOREPATH"), "", -1)
+	// We merge it to the basedir for a valid path like /home/gostore/manual2
+	localPath := filepath.Join(config.Config("BASEDIR"), gostorePath)
 
 	payload := struct {
 		Name string `json:"name"`
@@ -189,10 +195,32 @@ func ModifyFilesystemObject(requestContext *fiber.Ctx) error {
 	}
 
 	// Careful here. Control if the user is using the correct path in the app context and not the system context.
-	//mode := os.FileMode(octalBits)
-	//name := payload.Name
-	// convert payload.mode into a valid fs.FileMode
-	fmt.Println(os.FileMode(octalBits))
+	mode := os.FileMode(octalBits)
+	name := payload.Name
+
+	// Instanciate an object without creation using the localpath.
+
+	fsObject := NewFilesystemObjectMapper(localPath)
+
+	if err := fsObject.SetMode(mode); err != nil {
+		return requestContext.JSON(
+			errors.FormatError(
+				err.Error(),
+			),
+		)
+	}
+
+	// Create the local path using the payload name
+
+	payloadPath := filepath.Join(config.Config("BASEDIR"), name)
+
+	if err := fsObject.SetName(payloadPath); err != nil {
+		return requestContext.JSON(
+			errors.FormatError(
+				err.Error(),
+			),
+		)
+	}
 
 	return requestContext.JSON(payload)
 }
