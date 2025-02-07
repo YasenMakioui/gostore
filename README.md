@@ -1,12 +1,10 @@
 # gostore
 
+Project used to learn GO.
+
 A fiber app used to manage files in a server using HTTP requests.
 
-Next steps:
-
-* Add tests. Starting with object handler and object service
-* Implement monitoring of disk usage
-* Implement backups and the posibility to upload them to a cloud solution like S3
+With gostore you have a file store that you can manage using filesystem paths inserted in the url similar to S3
 
 setup:
 
@@ -29,3 +27,5 @@ Create .env file
 cp .env-template .env
 ```
 
+GOSTOREPATH references the api base url
+BASEDIR is the directory used to save and manage files

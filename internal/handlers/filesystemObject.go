@@ -71,7 +71,7 @@ func GetFilesystemObject(requestContext *fiber.Ctx) error {
 	for _, value := range entries {
 
 		// Extract only the app root. We don't want the absolute path given to the user.
-		fmt.Println(value)
+
 		name := strings.Replace(value.GetName(), config.Config("BASEDIR"), "", -1)
 
 		responseObject := &FilesystemObjectPayload{
